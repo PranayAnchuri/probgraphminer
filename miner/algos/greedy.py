@@ -4,6 +4,7 @@ import ipdb as pdb
 from miner.DS.Embeddings import *
 from miner.DS.pattern import Pattern
 from miner.algos.greedy_helper import get_inv_mapping
+from miner.algos.objective import obj_value
 from miner.misc import get_label, LabelPair, get_prob, Edge
 
 __author__ = 'Pranay Anchuri'
@@ -104,6 +105,9 @@ def get_extensions(pat, emb, output, db):
             pdb.set_trace()
         extensions[patprime] = Embed(emb, inv_mappings)
     if len(pat) == 3:
+        pat, emb = extensions.items()[0]
+        pdb.set_trace()
+        obj = obj_value(pat, db, emb)
         pdb.set_trace()
     return extensions
 
