@@ -1,4 +1,4 @@
-from miner.DS.Embeddings import Ids
+from miner.DS.Embeddings import Ids, MinMaxCov
 from miner.misc import get_prob, Edge
 import networkx as nx
 import ipdb as pdb
@@ -17,6 +17,17 @@ def intersect_prob(e1, e2):
     return reduce(lambda x, y: x * y, [edges1[ed] for ed in common], 1.0)
 
 
+def lower_bound(gr):
+    """
+    return the lower bound for the intersection of the probabilities
+    :param gr: Graph -- networkx graph with intersection probabilities on the edges
+    :return: float -- lower bound on the probability of the union event
+    """
+    node_wts = sum(attr['weight'] for _, attr in gr.nodes(data=True))
+    edge_wts = sum(attr['weight'] for _, _, attr in gr.edges(data=True))
+    return node_wts - edge_wts
+
+
 def union_prob(edgesets):
     # construct complete graph to compute an upper bound for the union probability
     gr = nx.Graph()
@@ -28,16 +39,19 @@ def union_prob(edgesets):
         for index2, value2 in enumerate(edgesets[index + 1:]):
             # compute the intersection probabilites
             prob = intersect_prob(value, value2)
-            if not prob:
-                gr.add_edge(index, index + index2, weight=-1.0 * prob)
+            if prob:
+                gr.add_edge(index, index + index2 + 1, weight=-1.0 * prob)
     # compute the weight of minimum spanning tree
     span_edges = list(nx.minimum_spanning_edges(gr))
-    return union_bound - sum(-1.0 * attr['weight'] for _, _, attr in span_edges)
+    lbnd = lower_bound(gr)
+    return lbnd, union_bound - sum(-1.0 * attr['weight'] for _, _, attr in span_edges)
 
 
-def obj_value(pat, db, embeddings):
+def obj_value(pat, db, embeddings, edges=None):
     """
     Returns the coverage of the pattern in the database
+    :param edges: list -- edges that should be considered for computing the coverage; if None all the edges in inv_mapping
+    are considered in the computation
     :param pat: Pattern
     :param db: Graph - input uncertain graph
     :param embeddings: namedtuple -- contains the mappings and the inverse mappings
@@ -49,10 +63,12 @@ def obj_value(pat, db, embeddings):
         edges = [(E[src], E[des], get_prob(db, E[src], E[des])) for src, des in pat.edges()]
         embeddings_edges.append(edges)
     # compute the coverage of every edge
-    total_cov = 0.0
+    total_cov = MinMaxCov()
     for ed, vals in embeddings.Inv_Mappings.items():
-        this_cov = union_prob([embeddings_edges[index] for index in vals[Ids]])
-        pdb.set_trace()
-        total_cov += this_cov
+        if not edges or ed in edges:
+            this_cov = union_prob([embeddings_edges[index] for index in vals[Ids]])
+            total_cov.MinCov += this_cov.MinCov
+            total_cov.MaxCov += this_cov.MaxCov
+            pdb.set_trace()
     return total_cov
 

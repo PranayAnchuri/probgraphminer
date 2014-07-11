@@ -1,4 +1,4 @@
-from miner.misc import NodeLab
+from miner.misc import NodeLab, Edge
 
 __author__ = 'Pranay Anchuri'
 
@@ -7,7 +7,12 @@ import networkx as nx
 
 class Pattern(nx.Graph):
     def __init__(self, data=None, **attr):
-        nx.Graph.__init__(self, data=data,**attr)
+        nx.Graph.__init__(self, data=data, **attr)
+        # key is an integer denoting the addition of the edge to the pattern and the value is the edge
+        if not data:
+            self.time_stamps = {}
+        else:
+            self.time_stamps = dict(data.time_stamps)
 
     def __str__(self):
         return "Nodes : %s \n Edges: %s" % (self.nodes(data=True), self.edges(data=True))
@@ -23,6 +28,16 @@ class Pattern(nx.Graph):
         self.add_node(vid)
         self.node[vid][NodeLab] = lab
         return vid
+
+    def add_edge(self, id1, id2):
+        nx.Graph.add_edge(self, id1, id2)
+        self.time_stamps[len(self.time_stamps)] = Edge(id1, id2)
+
+    def last_edge(self):
+        if self.edges():
+            return self.time_stamps[max(self.time_stamps.keys())]
+        else:
+            raise RuntimeError("Cannot get the last edge added to the pattern; No edges in the pattern")
 
     def add_single_edge(self, l1, l2):
         """

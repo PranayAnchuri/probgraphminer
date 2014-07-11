@@ -28,7 +28,7 @@ def get_single_pattern(db, output):
     pat.add_single_edge(l1, l2)
     # compute the embeddings for the single edge pattern
     EmbedList = []
-    InvMapping = defaultdict(lambda: [[], 0])
+    InvMapping = defaultdict(lambda: [[], MinMaxCov()])
     for ed in edge_types[LabelPair(l1, l2)]:
         src, des = list(ed)
         prob = get_prob(db, src, des)
@@ -37,7 +37,7 @@ def get_single_pattern(db, output):
         else:
             emb = [des, src]
         InvMapping[ed][Ids].append(len(EmbedList))
-        InvMapping[ed][Cov] = prob
+        InvMapping[ed][Cov] = MinMaxCov(prob, prob)
         EmbedList.append(emb)
     emb = Embed(EmbedList, InvMapping)
     return pat, emb
@@ -115,8 +115,8 @@ def get_extensions(pat, emb, output, db):
 def get_best_extension(pat, emb, output, db):
     print "Get extensions of the pattern", pat
     extensions = get_extensions(pat, emb, output, db)
-    pat, emb = extensions.items()[0]
-    return (True, pat, emb)
+    next_pat, next_emb = extensions.items()[0]
+    return (True, next_pat, next_emb)
 
 
 def get_next_pattern(db, output):

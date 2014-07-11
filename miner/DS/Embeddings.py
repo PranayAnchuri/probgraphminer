@@ -1,4 +1,5 @@
 from collections import namedtuple
+from recordtype import recordtype
 
 __author__ = 'Pranay Anchuri'
 
@@ -6,6 +7,10 @@ __author__ = 'Pranay Anchuri'
 # Inverse embeddings : dict; for each edge it stores the indices in the embeddings and the coverage
 
 Embed = namedtuple('Embeddings', ["Mappings", "Inv_Mappings"])
+
+# Coverage
+MinMaxCov = recordtype('MinMaxCoverage', [('MinCov', 0), ('MaxCov', 0)])
+
 
 # Inverse mappings
 Ids = 0
