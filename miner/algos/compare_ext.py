@@ -1,7 +1,8 @@
 from collections import defaultdict
 from miner.DS.Embeddings import MinMaxCov, Cov, Ids
-from miner.algos.objective import obj_value
+from miner.algos.objective import obj_value, mappings_to_edges, union_prob
 from miner.misc import Edge
+import ipdb as pdb
 
 __author__ = 'Pranay Anchuri'
 
@@ -24,12 +25,21 @@ __author__ = 'Pranay Anchuri'
 
 def contains_sublist(lst, sublst):
     n = len(sublst)
-    return any((sublst == lst[i:i+n]) for i in xrange(len(lst)-n+1))
+    return any((sublst == lst[i:i + n]) for i in xrange(len(lst) - n + 1))
 
 
-def cov_diff_bounds(emb, embprime, emb_new_edge, rem, pat_extended_ids, pat_nextended_ids):
+def get_bound_from_ids(embeds, ids, pat, db):
+    edgesets = [mappings_to_edges(db, embeds.Mappings[id], pat) for id in ids]
+    return union_prob(edgesets)
+
+
+def cov_diff_bounds(pat, patprime, emb, embprime, emb_new_edge, rem, pat_extended_ids, pat_nextended_ids, db):
     """
+
     See the image  https://imgur.com/AqaCw1M for the classification of edges
+    :param pat:
+    :param patprime:
+    :param db:
     :param emb:
     :param embprime:
     :param emb_new_edge:
@@ -38,10 +48,20 @@ def cov_diff_bounds(emb, embprime, emb_new_edge, rem, pat_extended_ids, pat_next
     :param pat_nextended_ids:
     :return:
     """
-    pass
+    bound_new_edge = get_bound_from_ids(embprime, emb_new_edge, patprime, db)
+    bound_extended = get_bound_from_ids(emb, pat_extended_ids, pat, db)
+    bound_nextended = get_bound_from_ids(emb, pat_nextended_ids, pat, db)
+    bound_rem = get_bound_from_ids(embprime, rem, patprime, db)
+    # minimum change
+    min_change = bound_new_edge.MinCov + bound_rem.MinCov - bound_extended.MaxCov - bound_nextended.MaxCov
+    + bound_extended.MinCov * bound_nextended.MinCov - min(bound_nextended.MaxCov, bound_rem.MaxCov)
+    # max change
+    max_change = bound_new_edge.MaxCov + bound_rem.MaxCov - bound_extended.MinCov - bound_nextended.MinCov
+    + bound_extended.MaxCov * bound_nextended.MaxCov - min(bound_nextended.MinCov, bound_rem.MinCov)
+    return MinMaxCov(min_change, max_change)
 
 
-def common_edges_cov_difference(ed, pat, emb, patprime, embprime, output):
+def common_edges_cov_difference(ed, pat, emb, patprime, embprime, output, db):
     """
     See the image  https://imgur.com/AqaCw1M for the classification of edges
     :param ed:
@@ -56,11 +76,11 @@ def common_edges_cov_difference(ed, pat, emb, patprime, embprime, output):
     src, des = list(patprime.last_edge())
     emb_new_edge = filter(
         lambda embindex: Edge(embprime.Mappings[embindex][src], embprime.Mappings[embindex][des]) == ed,
-        embprime.Inv_Mappings[Ids])
-    rem = list(set(embprime.Inv_Mappings[Ids].difference(set(emb_new_edge))))
+        embprime.Inv_Mappings[ed][Ids])
+    rem = list(set(embprime.Inv_Mappings[ed][Ids]).difference(set(emb_new_edge)))
     pat_extended_ids = []
     pat_nextended_ids = []
-    for index in emb.Inv_Mappings[Ids]:
+    for index in emb.Inv_Mappings[ed][Ids]:
         # check if this embedding shares a prefix with one of the remaining embeddings of pat prime
         for rem_id in rem:
             if contains_sublist(embprime.Mappings[rem_id], emb.Mappings[index]):
@@ -68,6 +88,7 @@ def common_edges_cov_difference(ed, pat, emb, patprime, embprime, output):
                 break
         else:
             pat_nextended_ids.append(index)
+    return cov_diff_bounds(pat, patprime, emb, embprime, emb_new_edge, rem, pat_extended_ids, pat_nextended_ids, db)
 
 
 def approx1(pat, emb, patprime, embprime, output, db):
@@ -92,12 +113,12 @@ def approx1(pat, emb, patprime, embprime, output, db):
         change.MinCov += -1.0 * emb.Inv_Mappings[ed][Cov].MaxCov
         change.MaxCov += -1.0 * emb.Inv_Mappings[ed][Cov].MinCov
     if grp4:
-        inc = obj_value(patprime, db, embprime[patprime], grp3)
+        inc = obj_value(patprime, db, embprime, grp3)
         change.MinCov += inc.MinCov
         change.MaxCov += inc.MaxCov
     for ed in grp3:
         # edges that are covered by both P and P'
-        diff = common_edges_cov_difference(pat, emb, patprime, embprime, output)
+        diff = common_edges_cov_difference(ed, pat, emb, patprime, embprime, output, db)
         change.MinCov += diff.MinCov
         change.MaxCov += diff.MaxCov
     return change
@@ -123,9 +144,12 @@ def cmp_ext(pat, db, emb, output, extensions):
     for mth in approx:
         changes = defaultdict(lambda: MinMaxCov())
         for patprime in rem_pats:
-            changes[pat] = mth(pat, emb, patprime, extensions[patprime], output, db)
-        # sort the items are remove some of them
+            changes[patprime] = mth(pat, emb, patprime, extensions[patprime], output, db)
+            # sort the items are remove some of them
+        pdb.set_trace()
         itms = changes.items()
         max_cov_itm = max(itms, key=cmp_cov_item)
         # remove all the patters whose max coverage is less than the min cov of max item
         rem_pats = filter(lambda itm: itm[1].MinCov >= max_cov_itm.MaxCov, itms)
+    pdb.set_trace()
+    return max_cov_itm

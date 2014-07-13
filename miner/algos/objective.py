@@ -44,7 +44,12 @@ def union_prob(edgesets):
     # compute the weight of minimum spanning tree
     span_edges = list(nx.minimum_spanning_edges(gr))
     lbnd = lower_bound(gr)
-    return lbnd, union_bound - sum(-1.0 * attr['weight'] for _, _, attr in span_edges)
+    return MinMaxCov(lbnd, union_bound - sum(-1.0 * attr['weight'] for _, _, attr in span_edges))
+
+
+def mappings_to_edges(db, E, pat):
+    edges = [(E[src], E[des], get_prob(db, E[src], E[des])) for src, des in pat.edges()]
+    return edges
 
 
 def obj_value(pat, db, embeddings, edges=None):
@@ -60,8 +65,8 @@ def obj_value(pat, db, embeddings, edges=None):
     # get the edges in each embedding
     embeddings_edges = []
     for E in embeddings.Mappings:
-        edges = [(E[src], E[des], get_prob(db, E[src], E[des])) for src, des in pat.edges()]
-        embeddings_edges.append(edges)
+        #edges = [(E[src], E[des], get_prob(db, E[src], E[des])) for src, des in pat.edges()]
+        embeddings_edges.append(mappings_to_edges(db, E, pat))
     # compute the coverage of every edge
     total_cov = MinMaxCov()
     for ed, vals in embeddings.Inv_Mappings.items():
@@ -69,6 +74,5 @@ def obj_value(pat, db, embeddings, edges=None):
             this_cov = union_prob([embeddings_edges[index] for index in vals[Ids]])
             total_cov.MinCov += this_cov.MinCov
             total_cov.MaxCov += this_cov.MaxCov
-            pdb.set_trace()
     return total_cov
 

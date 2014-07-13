@@ -3,6 +3,7 @@ import operator
 import ipdb as pdb
 from miner.DS.Embeddings import *
 from miner.DS.pattern import Pattern
+from miner.algos.compare_ext import cmp_ext
 from miner.algos.greedy_helper import get_inv_mapping
 from miner.algos.objective import obj_value
 from miner.misc import get_label, LabelPair, get_prob, Edge
@@ -115,6 +116,8 @@ def get_extensions(pat, emb, output, db):
 def get_best_extension(pat, emb, output, db):
     print "Get extensions of the pattern", pat
     extensions = get_extensions(pat, emb, output, db)
+    best_ext = cmp_ext(pat, db, emb, output, extensions)
+    pdb.set_trace()
     next_pat, next_emb = extensions.items()[0]
     return (True, next_pat, next_emb)
 
