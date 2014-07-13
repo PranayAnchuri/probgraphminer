@@ -57,7 +57,7 @@ def cov_diff_bounds(pat, patprime, emb, embprime, emb_new_edge, rem, pat_extende
     + bound_extended.MinCov * bound_nextended.MinCov - min(bound_nextended.MaxCov, bound_rem.MaxCov)
     # max change
     max_change = bound_new_edge.MaxCov + bound_rem.MaxCov - bound_extended.MinCov - bound_nextended.MinCov
-    + bound_extended.MaxCov * bound_nextended.MaxCov - min(bound_nextended.MinCov, bound_rem.MinCov)
+    + bound_extended.MaxCov * bound_nextended.MaxCov - (bound_nextended.MinCov * bound_rem.MinCov)
     return MinMaxCov(min_change, max_change)
 
 
@@ -146,10 +146,15 @@ def cmp_ext(pat, db, emb, output, extensions):
         for patprime in rem_pats:
             changes[patprime] = mth(pat, emb, patprime, extensions[patprime], output, db)
             # sort the items are remove some of them
-        pdb.set_trace()
         itms = changes.items()
         max_cov_itm = max(itms, key=cmp_cov_item)
         # remove all the patters whose max coverage is less than the min cov of max item
-        rem_pats = filter(lambda itm: itm[1].MinCov >= max_cov_itm.MaxCov, itms)
-    pdb.set_trace()
-    return max_cov_itm
+        try:
+            # coverage is at index 1
+            rem_pats = filter(lambda itm: itm[1].MinCov >= max_cov_itm[1].MaxCov, itms)
+        except AttributeError:
+            pdb.set_trace()
+    best_ext = max_cov_itm[0]
+    best_cov = max_cov_itm[1]
+    best_emb = extensions[best_ext]
+    return best_ext, best_emb, best_cov

@@ -1,4 +1,4 @@
-from miner.DS.Embeddings import Ids, MinMaxCov
+from miner.DS.Embeddings import Ids, MinMaxCov, Cov
 from miner.misc import get_prob, Edge
 import networkx as nx
 import ipdb as pdb
@@ -25,7 +25,8 @@ def lower_bound(gr):
     """
     node_wts = sum(attr['weight'] for _, attr in gr.nodes(data=True))
     edge_wts = sum(attr['weight'] for _, _, attr in gr.edges(data=True))
-    return node_wts - edge_wts
+    # the two quantities have to added because the edge weights are negative already
+    return node_wts + edge_wts
 
 
 def union_prob(edgesets):
@@ -44,7 +45,12 @@ def union_prob(edgesets):
     # compute the weight of minimum spanning tree
     span_edges = list(nx.minimum_spanning_edges(gr))
     lbnd = lower_bound(gr)
-    return MinMaxCov(lbnd, union_bound - sum(-1.0 * attr['weight'] for _, _, attr in span_edges))
+    upperbound = union_bound - sum(-1.0 * attr['weight'] for _, _, attr in span_edges)
+    try:
+        assert lbnd <= upperbound
+    except AssertionError:
+        pdb.set_trace()
+    return MinMaxCov(lbnd, upperbound)
 
 
 def mappings_to_edges(db, E, pat):
@@ -52,9 +58,10 @@ def mappings_to_edges(db, E, pat):
     return edges
 
 
-def obj_value(pat, db, embeddings, edges=None):
+def obj_value(pat, db, embeddings, edges=None, update_cov=False):
     """
     Returns the coverage of the pattern in the database
+    :param update_cov: boolean -- if true coverage of the edges are updated
     :param edges: list -- edges that should be considered for computing the coverage; if None all the edges in inv_mapping
     are considered in the computation
     :param pat: Pattern
@@ -72,7 +79,18 @@ def obj_value(pat, db, embeddings, edges=None):
     for ed, vals in embeddings.Inv_Mappings.items():
         if not edges or ed in edges:
             this_cov = union_prob([embeddings_edges[index] for index in vals[Ids]])
+            if update_cov:
+                embeddings.Inv_Mappings[ed][Cov] = this_cov
             total_cov.MinCov += this_cov.MinCov
             total_cov.MaxCov += this_cov.MaxCov
     return total_cov
 
+
+def compute_coverage_scores(pat, db, emb):
+    """
+    Update the coverage scores of the edges in the pattern and return the value of the objective function
+    :param pat: Pattern -
+    :param emb: namedtuple - of the type Embed
+    :return: namedtuple - of the type MinMax Coverage
+    """
+    return obj_value(pat, db, emb, update_cov=True)

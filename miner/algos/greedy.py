@@ -1,16 +1,20 @@
 from collections import defaultdict
 import operator
 import ipdb as pdb
+import pprint as pp
 from miner.DS.Embeddings import *
 from miner.DS.pattern import Pattern
 from miner.algos.compare_ext import cmp_ext
 from miner.algos.greedy_helper import get_inv_mapping
-from miner.algos.objective import obj_value
+from miner.algos.objective import obj_value, compute_coverage_scores
 from miner.misc import get_label, LabelPair, get_prob, Edge
+from miner.misc.logger import get_logger
 
 __author__ = 'Pranay Anchuri'
 
 # Greedy algorithm to construct k patterns that maximizes the value of the objective function
+
+logger = get_logger(__name__)
 
 
 def get_single_pattern(db, output):
@@ -105,32 +109,46 @@ def get_extensions(pat, emb, output, db):
         except TypeError:
             pdb.set_trace()
         extensions[patprime] = Embed(emb, inv_mappings)
-    if len(pat) == 3:
-        pat, emb = extensions.items()[0]
-        pdb.set_trace()
-        obj = obj_value(pat, db, emb)
-        pdb.set_trace()
     return extensions
 
 
 def get_best_extension(pat, emb, output, db):
-    print "Get extensions of the pattern", pat
     extensions = get_extensions(pat, emb, output, db)
-    best_ext = cmp_ext(pat, db, emb, output, extensions)
-    pdb.set_trace()
-    next_pat, next_emb = extensions.items()[0]
-    return (True, next_pat, next_emb)
+    if not extensions:
+        return False, pat, emb, MinMaxCov()
+    logger.info("Possible extensions of the pattern are %s " % pp.pformat(extensions.keys()))
+    best_ext, best_emb, best_cov = cmp_ext(pat, db, emb, output, extensions)
+    logger.info("The best extension is %s " % pp.pformat(best_ext))
+    #next_pat, next_emb = extensions.items()[0]
+    #return True, next_pat[0], next_emb
+    # return an extension only if the minimum change in the coverage is positive
+    status = False
+    if best_cov.MinCov > 0:
+        status = True
+    else:
+        best_ext = pat
+        best_emb = emb
+    total_cov = compute_coverage_scores(best_ext, db, best_emb)
+    return status, best_ext, best_emb, total_cov
 
 
 def get_next_pattern(db, output):
     pat, emb = get_single_pattern(db, output)
+    logger.info("Iteration starts with single edge pattern %s" % pat.__str__())
+    logger.debug(nt_str(emb))
     while True:
-        status, next_pat, next_emb = get_best_extension(pat, emb, output, db)
+        status, next_pat, next_emb, cov = get_best_extension(pat, emb, output, db)
         if status:
+            logger.info("Extension of the pattern is %s " % pat.__str__())
+            logger.debug(nt_str(emb))
+            logger.debug("Total coverage %s" % pp.pformat(cov))
             pat = next_pat
             emb = next_emb
         else:
+            logger.info("Pattern cannot be extended anymore")
             break
+    logger.info("Pattern constructed in this iteration is %s" % pat.__str__())
+    logger.debug(nt_str(emb))
     return pat, emb
 
 
@@ -143,6 +161,7 @@ def greedy(db, k):
    """
     output = []
     for i in range(k):
+        logger.info("Iteration %d of the greedy algorithm" % i)
         pat, embeddings = get_next_pattern(db, output)
         output.append((pat, embeddings))
     return output
