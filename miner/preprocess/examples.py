@@ -19,3 +19,10 @@ def triangle():
     gr.add_nodes_from(create_lab_node(id, lab) for id, lab in [(1, 'A'), (2, 'B'), (3, 'B')])
     gr.add_edges_from(create_prob_edge(id1, id2, prob) for id1, id2, prob in [(1, 2, 0.8), (2, 3, 0.9), (1, 3, 0.6)])
     return gr
+
+
+def traingle_same_labels():
+    gr = nx.Graph()
+    gr.add_nodes_from(create_lab_node(id, lab) for id, lab in [(1, 'A'), (2, 'A'), (3, 'A')])
+    gr.add_edges_from(create_prob_edge(id1, id2, prob) for id1, id2, prob in [(1, 2, 0.8), (2, 3, 0.9), (1, 3, 0.6)])
+    return gr

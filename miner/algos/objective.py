@@ -6,15 +6,24 @@ import ipdb as pdb
 __author__ = 'Pranay Anchuri'
 
 # value of the objective function
+# TODO : obtain better bounds for the union probability using multicherry construction
 
 
 def intersect_prob(e1, e2):
-    edges1 = dict((Edge(src, des), pr) for src, des, pr in e1)
-    edges2 = dict((Edge(src, des), pr) for src, des, pr in e2)
-    common = set(edges1.keys()).intersection(edges2.keys())
-    if not common:
-        return 0
-    return reduce(lambda x, y: x * y, [edges1[ed] for ed in common], 1.0)
+    """
+    Compute the probability that both the embeddings occur in a possible world
+    :param e1: list - of three tuples (src, des, prob) in the first embedding
+    :param e2: list - of three tuples (src, des, prob) in the second embedding
+    :return: float - <= 1 and >0
+    """
+    mul = lambda x, y: x * y
+    pr1 = reduce(mul, [pr for _, _, pr in e1], 1.0)
+    pr2 = reduce(mul, [pr for _, _, pr in e2], 1.0)
+    prmap = dict([(Edge(src, des), pr) for src, des, pr in e1])
+    common = set([Edge(src, des) for src, des, _ in e1]).intersection([Edge(src, des) for src, des, _ in e2])
+    pr3 = reduce(mul, [prmap[ed] for ed in common], 1.0)
+    assert pr3 >= 0
+    return (pr1 * pr2) / float(pr3)
 
 
 def lower_bound(gr):
@@ -49,6 +58,8 @@ def union_prob(edgesets):
     try:
         assert lbnd <= upperbound
     except AssertionError:
+        pdb.set_trace()
+    if gr.number_of_edges() == 3:
         pdb.set_trace()
     return MinMaxCov(lbnd, upperbound)
 
