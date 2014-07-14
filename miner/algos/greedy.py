@@ -163,5 +163,7 @@ def greedy(db, k):
     for i in range(k):
         logger.info("Iteration %d of the greedy algorithm" % i)
         pat, embeddings = get_next_pattern(db, output)
+        uniq_embeds = remove_duplicate_embeddings(pat, embeddings)
+        pdb.set_trace()
         output.append((pat, embeddings))
     return output

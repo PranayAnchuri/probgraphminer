@@ -59,8 +59,6 @@ def union_prob(edgesets):
         assert lbnd <= upperbound
     except AssertionError:
         pdb.set_trace()
-    if gr.number_of_edges() == 3:
-        pdb.set_trace()
     return MinMaxCov(lbnd, upperbound)
 
 
@@ -83,7 +81,7 @@ def obj_value(pat, db, embeddings, edges=None, update_cov=False):
     # get the edges in each embedding
     embeddings_edges = []
     for E in embeddings.Mappings:
-        #edges = [(E[src], E[des], get_prob(db, E[src], E[des])) for src, des in pat.edges()]
+        # edges = [(E[src], E[des], get_prob(db, E[src], E[des])) for src, des in pat.edges()]
         embeddings_edges.append(mappings_to_edges(db, E, pat))
     # compute the coverage of every edge
     total_cov = MinMaxCov()
