@@ -8,3 +8,4 @@ get_label = lambda x, y: x.node[y][NodeLab]
 get_prob = lambda gr, src, des: gr.edge[src][des][EdgePr]
 Edge = lambda x, y: frozenset([x, y])
 LabelPair = lambda l1, l2: tuple(sorted([l1, l2]))
+is_edge = lambda gr, src, des: gr.has_edge(src, des)

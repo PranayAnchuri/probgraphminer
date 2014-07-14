@@ -9,6 +9,7 @@ from miner.algos.greedy_helper import get_inv_mapping
 from miner.algos.objective import obj_value, compute_coverage_scores
 from miner.misc import get_label, LabelPair, get_prob, Edge
 from miner.misc.logger import get_logger
+from miner.tests.test_embeddings import test_valid_embeddings
 
 __author__ = 'Pranay Anchuri'
 
@@ -164,6 +165,7 @@ def greedy(db, k):
         logger.info("Iteration %d of the greedy algorithm" % i)
         pat, embeddings = get_next_pattern(db, output)
         uniq_embeds = remove_duplicate_embeddings(pat, embeddings)
+        assert test_valid_embeddings(pat, db, uniq_embeds)
         pdb.set_trace()
         output.append((pat, embeddings))
     return output
