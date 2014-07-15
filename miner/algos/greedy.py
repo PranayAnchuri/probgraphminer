@@ -149,6 +149,7 @@ def get_next_pattern(db, output):
         else:
             logger.info("Pattern cannot be extended anymore")
             break
+        emb = remove_duplicate_embeddings(pat, emb)
     logger.info("Pattern constructed in this iteration is %s" % pat.__str__())
     logger.debug(nt_str(emb))
     return pat, emb
@@ -165,7 +166,6 @@ def greedy(db, k):
     for i in range(k):
         logger.info("Iteration %d of the greedy algorithm" % i)
         pat, embeddings = get_next_pattern(db, output)
-        uniq_embeds = remove_duplicate_embeddings(pat, embeddings)
         assert test_valid_embeddings(pat, db, uniq_embeds)
         pdb.set_trace()
         output.append((pat, embeddings))

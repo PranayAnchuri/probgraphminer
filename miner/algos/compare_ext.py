@@ -145,7 +145,7 @@ def cmp_ext(pat, db, emb, output, extensions):
     for mth in approx:
         changes = defaultdict(lambda: MinMaxCov())
         for patprime in rem_pats:
-            changes[patprime] = mth(pat, emb, patprime, extensions[patprime], output, db)
+            changes[patprime] = mth((pat, emb, patprime, extensions[patprime], output, db))
             # sort the items are remove some of them
         itms = changes.items()
         max_cov_itm = max(itms, key=cmp_cov_item)

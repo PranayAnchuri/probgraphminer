@@ -1,3 +1,4 @@
+import math
 from miner.DS.Embeddings import Ids, MinMaxCov, Cov
 from miner.misc import get_prob, Edge
 import networkx as nx
@@ -35,7 +36,50 @@ def lower_bound(gr):
     node_wts = sum(attr['weight'] for _, attr in gr.nodes(data=True))
     edge_wts = sum(attr['weight'] for _, _, attr in gr.edges(data=True))
     # the two quantities have to added because the edge weights are negative already
+    try:
+        assert node_wts + edge_wts >= 0.0
+    except AssertionError:
+        pdb.set_trace()
     return node_wts + edge_wts
+
+
+def lower_bound_caen(gr):
+    """
+    See the article "A lower bound on the probability of a union" by Caen
+    :param gr: Graph where each node correspond to an embedding
+    :return: lower bound on the prob of union of embeddings
+    """
+    lb = 0.0
+    for ev1, attr1 in gr.nodes(data=True):
+        non_zero_nbrs = [(nbr, -1.0 * gr.edge[ev1][nbr]['weight']) for nbr in gr.neighbors(ev1) if
+                         -1.0 * gr.edge[ev1][nbr]['weight'] > 0]
+        selfwt = attr1['weight']
+        if non_zero_nbrs:
+            lb += (selfwt ** 2) / float(sum(wt for _, wt in non_zero_nbrs))
+    try:
+        assert lb >= 0
+    except AssertionError:
+        pdb.set_trace()
+    return lb
+
+
+def lower_bound_caen2(gr):
+    """
+    See http://imgur.com/fvq4FLZ
+    :param gr:
+    :return:
+    """
+    if not gr:
+        return 0.0
+    s1 = sum(attr['weight'] for _, attr in gr.nodes(data=True))
+    s2 = sum(-1.0 * attr['weight'] for _, _, attr in gr.edges(data=True))
+    try:
+        frac = float(2 * s2) / float(s1)
+    except ZeroDivisionError:
+        pdb.set_trace()
+    theta = frac - math.floor(frac)
+    return theta * s1 * s1 / float((2 - theta) * s1 + 2 * s2) + (
+        (1 - theta) * s1 * s1 / float((1 - theta) * s1 + 2 * s2))
 
 
 def union_prob(edgesets):
@@ -53,10 +97,10 @@ def union_prob(edgesets):
                 gr.add_edge(index, index + index2 + 1, weight=-1.0 * prob)
     # compute the weight of minimum spanning tree
     span_edges = list(nx.minimum_spanning_edges(gr))
-    lbnd = lower_bound(gr)
+    lbnd = lower_bound_caen2(gr)
     upperbound = union_bound - sum(-1.0 * attr['weight'] for _, _, attr in span_edges)
     try:
-        assert lbnd <= upperbound
+        assert (upperbound - lbnd) >= -1.0 * math.pow(10, -4)
     except AssertionError:
         pdb.set_trace()
     return MinMaxCov(lbnd, upperbound)
