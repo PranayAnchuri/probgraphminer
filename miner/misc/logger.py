@@ -11,5 +11,5 @@ def get_logger(name=None):
     fh = logging.FileHandler('%s.log' % name, mode='w')
     fh.setFormatter(formatter)
     logger.addHandler(fh)
-    logger.setLevel(logging.DEBUG)
+    logger.setLevel(logging.INFO)
     return logger

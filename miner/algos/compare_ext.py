@@ -3,6 +3,7 @@ from miner.DS.Embeddings import MinMaxCov, Cov, Ids
 from miner.algos.objective import obj_value, mappings_to_edges, union_prob
 from miner.misc import Edge
 import ipdb as pdb
+import multiprocessing
 
 __author__ = 'Pranay Anchuri'
 
@@ -91,7 +92,7 @@ def common_edges_cov_difference(ed, pat, emb, patprime, embprime, output, db):
     return cov_diff_bounds(pat, patprime, emb, embprime, emb_new_edge, rem, pat_extended_ids, pat_nextended_ids, db)
 
 
-def approx1(pat, emb, patprime, embprime, output, db):
+def approx1((pat, emb, patprime, embprime, output, db)):
     """
     Return MinMax change in the objective function
     :param pat:

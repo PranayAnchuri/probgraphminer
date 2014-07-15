@@ -124,11 +124,12 @@ def get_best_extension(pat, emb, output, db):
     #return True, next_pat[0], next_emb
     # return an extension only if the minimum change in the coverage is positive
     status = False
-    if best_cov.MinCov > 0:
+    if best_cov.MaxCov > 0:
         status = True
     else:
         best_ext = pat
         best_emb = emb
+    pdb.set_trace()
     total_cov = compute_coverage_scores(best_ext, db, best_emb)
     return status, best_ext, best_emb, total_cov
 
