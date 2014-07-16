@@ -25,7 +25,7 @@ def get_remaining_coverage(db, all_embeddings):
     coverage by all the patterns that are computed till now
     :return: dict - key is pair of labels and the value is a dict with edges as keys and the cumulative coverage as the value
     """
-    rem_cov = defaultdict(lambda : defaultdict(MinMaxCov))
+    rem_cov = defaultdict(lambda: defaultdict(MinMaxCov))
     for src, des, attr in db.edges(data=True):
         prob = attr[EdgePr]
         l1, l2 = get_label(db, src), get_label(db, des)
@@ -33,11 +33,11 @@ def get_remaining_coverage(db, all_embeddings):
             curr_cov = all_embeddings.Inv_Mappings[Edge(src, des)][Cov]
         else:
             curr_cov = MinMaxCov()
-            try:
-                assert curr_cov.MinCov <= prob
-            except AssertionError:
-                pdb.set_trace()
-            rem_cov[LabelPair(l1, l2)][Edge(src, des)] = MinMaxCov(max(prob - curr_cov.MaxCov, 0), prob - curr_cov.MinCov)
+        try:
+            assert curr_cov.MinCov <= prob
+        except AssertionError:
+            pdb.set_trace()
+        rem_cov[LabelPair(l1, l2)][Edge(src, des)] = MinMaxCov(max(prob - curr_cov.MaxCov, 0), prob - curr_cov.MinCov)
     return rem_cov
 
 
@@ -80,7 +80,6 @@ def get_single_pattern(db, output, all_embeddings):
     pat = get_best_l1(rem_cov)
     # now create embedding object for the pattern "pat"
     emb = create_embeddings(rem_cov, pat, db)
-    pdb.set_trace()
     return pat, emb
 
 
@@ -148,16 +147,22 @@ def get_extensions(pat, emb, output, db):
     return extensions
 
 
-def get_best_extension(pat, emb, output, db):
+def get_best_extension(pat, emb, output, db, all_embeddings):
+    """
+
+    :param pat:
+    :param emb:
+    :param output:
+    :param db:
+    :param all_embeddings: Embed - embeddings of all the patterns till now
+    :return:
+    """
     extensions = get_extensions(pat, emb, output, db)
     if not extensions:
         return False, pat, emb, MinMaxCov()
     logger.info("Possible extensions of the pattern are %s " % pp.pformat(extensions.keys()))
-    best_ext, best_emb, best_cov = cmp_ext(pat, db, emb, output, extensions)
+    best_ext, best_emb, best_cov = cmp_ext(pat, db, emb, output, extensions, all_embeddings)
     logger.info("The best extension is %s " % pp.pformat(best_ext))
-    #next_pat, next_emb = extensions.items()[0]
-    #return True, next_pat[0], next_emb
-    # return an extension only if the minimum change in the coverage is positive
     status = False
     if best_cov.MaxCov > 0:
         status = True
@@ -174,7 +179,7 @@ def get_next_pattern(db, output, all_embeddings):
     logger.info("Iteration starts with single edge pattern %s" % pat.__str__())
     logger.debug(nt_str(emb))
     while True:
-        status, next_pat, next_emb, cov = get_best_extension(pat, emb, output, db)
+        status, next_pat, next_emb, cov = get_best_extension(pat, emb, output, db, all_embeddings)
         if status:
             logger.info("Extension of the pattern is %s " % pat.__str__())
             logger.debug(nt_str(emb))
@@ -190,6 +195,45 @@ def get_next_pattern(db, output, all_embeddings):
     return pat, emb
 
 
+def union_coverage(prev_cov, next_cov):
+    """
+    Total coverage of the pattern by merging both the coverages
+    See http://imgur.com/fJokqsU
+    :param prev_cov:
+    :param next_cov:
+    :return:
+    """
+    new_min = prev_cov.MinCov + next_cov.MinCov - min(prev_cov.MaxCov, next_cov.MaxCov)
+    new_max = prev_cov.MaxCov + next_cov.MaxCov - prev_cov.MinCov * next_cov.MinCov
+    return new_min, new_max
+
+
+def post_pat_const(pat, embeddings, output, all_embeddings):
+    """
+    Append the pattern and update all_embeddings
+
+    :param pat: Pattern - pattern that is a result of greedy construction algorithm
+    :param embeddings: Embed - Embeddings of the pattern
+    :param output: list - set of patterns that are constructed till now
+    :param all_embeddings: Embed - embeddings of all the patterns till now
+    :return: None
+
+    """
+    output.append(pat)
+    # add the embeddings
+    offset = len(all_embeddings.Mappings)
+    all_embeddings.Mappings.extend(embeddings.Mappings)
+    for ed, invmap in embeddings.Inv_Mappings.items():
+        all_embeddings.Inv_Mappings[ed][Ids].extend(index + offset for index in invmap[Ids])
+        # get the new coverage of the edge
+        new_min, new_max = union_coverage(invmap[Cov], all_embeddings.Inv_Mappings[ed][Cov])
+        all_embeddings.Inv_Mappings[ed][Cov].MinCov = new_min
+        all_embeddings.Inv_Mappings[ed][Cov].MaxCov = new_max
+    offset = len(all_embeddings.Mappings)
+    all_embeddings.Mappings.append([-1])
+    all_embeddings.Inv_Mappings[Edge(-1, -1)][Ids].append(offset)
+
+
 def greedy(db, k):
     """
    Returns k patterns that maximizes the value of the objective function
@@ -197,12 +241,14 @@ def greedy(db, k):
    :param k: Number of patterns required
    :return: list of patterns
    """
-    output = []
-    all_embeddings = Embed([], {})
+    output = []  # contains the patterns constructed
+    # contains all the embeddings of all the patterns that are constructed till now
+    # embeddings of different patterns are seperated by a [-1]
+    all_embeddings = Embed([], defaultdict(lambda: [[], MinMaxCov()]))
     for i in range(k):
         logger.info("Iteration %d of the greedy algorithm" % i)
         pat, embeddings = get_next_pattern(db, output, all_embeddings)
         assert test_valid_embeddings(pat, db, embeddings)
-        pdb.set_trace()
-        output.append((pat, embeddings))
+        post_pat_const(pat, embeddings, output, all_embeddings)
+        output.append(pat)
     return output

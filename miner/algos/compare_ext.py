@@ -1,7 +1,7 @@
 from collections import defaultdict
 from miner.DS.Embeddings import MinMaxCov, Cov, Ids
 from miner.algos.objective import obj_value, mappings_to_edges, prob_bounds
-from miner.misc import Edge
+from miner.misc import Edge, get_prob
 import ipdb as pdb
 import multiprocessing
 
@@ -92,7 +92,25 @@ def common_edges_cov_difference(ed, pat, emb, patprime, embprime, output, db):
     return cov_diff_bounds(pat, patprime, emb, embprime, emb_new_edge, rem, pat_extended_ids, pat_nextended_ids, db)
 
 
-def approx1((pat, emb, patprime, embprime, output, db)):
+def mult_factor(src, des, db, all_embeddings):
+    """
+    Multiply the change with this factor to account for the fact that
+    the edge might have been covered by the previous embeddings
+    :param db:
+    :param src: int
+    :param des: int
+    :param all_embeddings: Embed
+    :return: MinMaxCov - min value is the multiplying factor for min cover and max value is mult factor max cover change
+    """
+    prob = get_prob(db, src, des)
+    prev_cov = all_embeddings.Inv_Mappings[Edge(src, des)][Cov]
+    min_fact = 1.0 - (prev_cov.MaxCov / prob)
+    max_fact = 1.0 - (prev_cov.MinCov / prob)
+    assert min_fact >= 0 and max_fact >= 0
+    return min_fact, max_fact
+
+
+def approx1((pat, emb, patprime, embprime, output, db, all_embeddings)):
     """
     Return MinMax change in the objective function
     :param pat:
@@ -111,17 +129,23 @@ def approx1((pat, emb, patprime, embprime, output, db)):
     grp4 = next_edges.difference(prev_edges)
     change = MinMaxCov()
     for ed in grp2:
-        change.MinCov += -1.0 * emb.Inv_Mappings[ed][Cov].MaxCov
-        change.MaxCov += -1.0 * emb.Inv_Mappings[ed][Cov].MinCov
-    if grp4:
+        src, des = list(ed)
+        min_fact, max_fact = mult_factor(src, des, db, all_embeddings)
+        change.MinCov += -1.0 * emb.Inv_Mappings[ed][Cov].MaxCov * min_fact
+        change.MaxCov += -1.0 * emb.Inv_Mappings[ed][Cov].MinCov * max_fact
+    for ed in grp4:
+        src, des = list(ed)
+        min_fact, max_fact = mult_factor(src, des, db, all_embeddings)
         inc = obj_value(patprime, db, embprime, grp3)
-        change.MinCov += inc.MinCov
-        change.MaxCov += inc.MaxCov
+        change.MinCov += inc.MinCov * min_fact
+        change.MaxCov += inc.MaxCov * max_fact
     for ed in grp3:
         # edges that are covered by both P and P'
+        src, des = list(ed)
+        min_fact, max_fact = mult_factor(src, des, db, all_embeddings)
         diff = common_edges_cov_difference(ed, pat, emb, patprime, embprime, output, db)
-        change.MinCov += diff.MinCov
-        change.MaxCov += diff.MaxCov
+        change.MinCov += diff.MinCov * min_fact
+        change.MaxCov += diff.MaxCov * max_fact
     return change
 
 
@@ -129,10 +153,11 @@ def cmp_cov_item(item):
     return item[1].MaxCov
 
 
-def cmp_ext(pat, db, emb, output, extensions):
+def cmp_ext(pat, db, emb, output, extensions, all_embeddings):
     """
     Compares and returns the best extension out of all possible extensions.
     It computes min and max coverage for each extension and compares them.
+    :param all_embeddings: Embed -- all embeddings of the patterns constructed till now
     :param pat:
     :param db:
     :param emb:
@@ -145,7 +170,7 @@ def cmp_ext(pat, db, emb, output, extensions):
     for mth in approx:
         changes = defaultdict(lambda: MinMaxCov())
         for patprime in rem_pats:
-            changes[patprime] = mth((pat, emb, patprime, extensions[patprime], output, db))
+            changes[patprime] = mth((pat, emb, patprime, extensions[patprime], output, db, all_embeddings))
             # sort the items are remove some of them
         itms = changes.items()
         max_cov_itm = max(itms, key=cmp_cov_item)
