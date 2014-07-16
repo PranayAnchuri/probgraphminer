@@ -7,7 +7,7 @@ from miner.DS.pattern import Pattern
 from miner.algos.compare_ext import cmp_ext
 from miner.algos.greedy_helper import get_inv_mapping
 from miner.algos.objective import obj_value, compute_coverage_scores
-from miner.misc import get_label, LabelPair, get_prob, Edge
+from miner.misc import get_label, LabelPair, get_prob, Edge, EdgePr
 from miner.misc.logger import get_logger
 from miner.tests.test_embeddings import test_valid_embeddings
 
@@ -18,34 +18,69 @@ __author__ = 'Pranay Anchuri'
 logger = get_logger(__name__)
 
 
-def get_single_pattern(db, output):
-    # return single edge pattern that has maximum remaining coverage
-    # key is edge type (pair of labels), value is dict with db edge as the key and value is the remaining coverage
-    edge_types = defaultdict(lambda: defaultdict(float))
-    for src, des in db.edges():
+def get_remaining_coverage(db, all_embeddings):
+    """
+    Compute the remaining coverage for each edge in the graph; group the edges based on the labels of the end nodes
+    :param all_embeddings : Embed - embeddings of all the patterns constructed till now; the coverage of an edge is the cumulative
+    coverage by all the patterns that are computed till now
+    :return: dict - key is pair of labels and the value is a dict with edges as keys and the cumulative coverage as the value
+    """
+    rem_cov = defaultdict(lambda : defaultdict(MinMaxCov))
+    for src, des, attr in db.edges(data=True):
+        prob = attr[EdgePr]
         l1, l2 = get_label(db, src), get_label(db, des)
-        edge_types[LabelPair(l1, l2)][Edge(src, des)] = get_prob(db, src, des)
-    # subtract the coverages by previously computed patterns
-    rem_coverages = dict([(k, sum(ed.values())) for k, ed in edge_types.items()])
-    # construct the pattern from the type with maximum value
-    best_type = max(rem_coverages.items(), key=operator.itemgetter(1))[0]
-    l1, l2 = list(best_type)
+        if Edge(src, des) in all_embeddings.Inv_Mappings:
+            curr_cov = all_embeddings.Inv_Mappings[Edge(src, des)][Cov]
+        else:
+            curr_cov = MinMaxCov()
+            try:
+                assert curr_cov.MinCov <= prob
+            except AssertionError:
+                pdb.set_trace()
+            rem_cov[LabelPair(l1, l2)][Edge(src, des)] = MinMaxCov(max(prob - curr_cov.MaxCov, 0), prob - curr_cov.MinCov)
+    return rem_cov
+
+
+def get_best_l1(rem_cov):
+    """
+    Get the best l1 pattern from the remaining edges
+    :param rem_cov: dict
+    :return: Pattern, Embedding of l1
+    """
+    potentials = [(k, sum(cov.MinCov for cov in coverages.values())) for k, coverages in rem_cov.items()]
+    ((l1, l2), pot) = max(potentials, key=operator.itemgetter(1))
     pat = Pattern()
     pat.add_single_edge(l1, l2)
-    # compute the embeddings for the single edge pattern
-    EmbedList = []
+    return pat
+
+
+def create_embeddings(rem_cov, pat, db):
+    """
+    Create embedding object for the single edge pattern pat
+    :param rem_cov:
+    :param db:
+    :return:
+    """
+    l1, l2 = [get_label(pat, nd) for nd in pat.nodes()]
+    mappings = []
     InvMapping = defaultdict(lambda: [[], MinMaxCov()])
-    for ed in edge_types[LabelPair(l1, l2)]:
+    idx = 0
+    for ed, _ in rem_cov[LabelPair(l1, l2)].items():
         src, des = list(ed)
+        mappings.append([src, des] if get_label(db, src) == l1 else [des, src])
         prob = get_prob(db, src, des)
-        if l1 == get_label(db, src):
-            emb = [src, des]
-        else:
-            emb = [des, src]
-        InvMapping[ed][Ids].append(len(EmbedList))
+        InvMapping[ed][Ids] = [idx]
         InvMapping[ed][Cov] = MinMaxCov(prob, prob)
-        EmbedList.append(emb)
-    emb = Embed(EmbedList, InvMapping)
+        idx += 1
+    return Embed(mappings, InvMapping)
+
+
+def get_single_pattern(db, output, all_embeddings):
+    rem_cov = get_remaining_coverage(db, all_embeddings)
+    pat = get_best_l1(rem_cov)
+    # now create embedding object for the pattern "pat"
+    emb = create_embeddings(rem_cov, pat, db)
+    pdb.set_trace()
     return pat, emb
 
 
@@ -134,8 +169,8 @@ def get_best_extension(pat, emb, output, db):
     return status, best_ext, best_emb, total_cov
 
 
-def get_next_pattern(db, output):
-    pat, emb = get_single_pattern(db, output)
+def get_next_pattern(db, output, all_embeddings):
+    pat, emb = get_single_pattern(db, output, all_embeddings)
     logger.info("Iteration starts with single edge pattern %s" % pat.__str__())
     logger.debug(nt_str(emb))
     while True:
@@ -163,10 +198,11 @@ def greedy(db, k):
    :return: list of patterns
    """
     output = []
+    all_embeddings = Embed([], {})
     for i in range(k):
         logger.info("Iteration %d of the greedy algorithm" % i)
-        pat, embeddings = get_next_pattern(db, output)
-        assert test_valid_embeddings(pat, db, uniq_embeds)
+        pat, embeddings = get_next_pattern(db, output, all_embeddings)
+        assert test_valid_embeddings(pat, db, embeddings)
         pdb.set_trace()
         output.append((pat, embeddings))
     return output
