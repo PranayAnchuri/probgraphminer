@@ -2,7 +2,7 @@ from collections import namedtuple
 import ipdb as pdb
 from recordtype import recordtype
 import pprint as pp
-from kitchen.pycompat25.collections._defaultdict import defaultdict
+from collections import defaultdict
 from miner.misc import Edge
 
 __author__ = 'Pranay Anchuri'
