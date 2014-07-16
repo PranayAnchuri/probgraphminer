@@ -1,6 +1,6 @@
 from collections import defaultdict
 from miner.DS.Embeddings import MinMaxCov, Cov, Ids
-from miner.algos.objective import obj_value, mappings_to_edges, union_prob
+from miner.algos.objective import obj_value, mappings_to_edges, prob_bounds
 from miner.misc import Edge
 import ipdb as pdb
 import multiprocessing
@@ -31,7 +31,7 @@ def contains_sublist(lst, sublst):
 
 def get_bound_from_ids(embeds, ids, pat, db):
     edgesets = [mappings_to_edges(db, embeds.Mappings[id], pat) for id in ids]
-    return union_prob(edgesets)
+    return prob_bounds(edgesets)
 
 
 def cov_diff_bounds(pat, patprime, emb, embprime, emb_new_edge, rem, pat_extended_ids, pat_nextended_ids, db):

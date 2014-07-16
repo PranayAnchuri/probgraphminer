@@ -27,7 +27,7 @@ def intersect_prob(e1, e2):
     return (pr1 * pr2) / float(pr3)
 
 
-def lower_bound(gr):
+def lower_bound_basic(gr):
     """
     return the lower bound for the intersection of the probabilities
     :param gr: Graph -- networkx graph with intersection probabilities on the edges
@@ -36,11 +36,7 @@ def lower_bound(gr):
     node_wts = sum(attr['weight'] for _, attr in gr.nodes(data=True))
     edge_wts = sum(attr['weight'] for _, _, attr in gr.edges(data=True))
     # the two quantities have to added because the edge weights are negative already
-    try:
-        assert node_wts + edge_wts >= 0.0
-    except AssertionError:
-        pdb.set_trace()
-    return node_wts + edge_wts
+    return min(node_wts + edge_wts, 0.0)
 
 
 def lower_bound_caen(gr):
@@ -55,7 +51,7 @@ def lower_bound_caen(gr):
                          -1.0 * gr.edge[ev1][nbr]['weight'] > 0]
         selfwt = attr1['weight']
         if non_zero_nbrs:
-            lb += (selfwt ** 2) / float(sum(wt for _, wt in non_zero_nbrs))
+            lb += (selfwt ** 2) / float(sum(wt for _, wt in non_zero_nbrs) + selfwt)
     try:
         assert lb >= 0
     except AssertionError:
@@ -82,7 +78,17 @@ def lower_bound_caen2(gr):
         (1 - theta) * s1 * s1 / float((1 - theta) * s1 + 2 * s2))
 
 
-def union_prob(edgesets):
+def lower_bound(gr):
+    """
+    Return the best lower bound from various methods
+    :param gr: Graph - Each node is an event and weight on the edge is the intersection probability
+    :return: float
+    """
+    methods = [lower_bound_basic, lower_bound_caen, lower_bound_caen2]
+    return min(mth(gr) for mth in methods)
+
+
+def prob_bounds(edgesets):
     # construct complete graph to compute an upper bound for the union probability
     gr = nx.Graph()
     union_bound = 0.0
@@ -97,7 +103,7 @@ def union_prob(edgesets):
                 gr.add_edge(index, index + index2 + 1, weight=-1.0 * prob)
     # compute the weight of minimum spanning tree
     span_edges = list(nx.minimum_spanning_edges(gr))
-    lbnd = lower_bound_caen2(gr)
+    lbnd = lower_bound(gr)
     upperbound = union_bound - sum(-1.0 * attr['weight'] for _, _, attr in span_edges)
     try:
         assert (upperbound - lbnd) >= -1.0 * math.pow(10, -4)
@@ -131,7 +137,7 @@ def obj_value(pat, db, embeddings, edges=None, update_cov=False):
     total_cov = MinMaxCov()
     for ed, vals in embeddings.Inv_Mappings.items():
         if not edges or ed in edges:
-            this_cov = union_prob([embeddings_edges[index] for index in vals[Ids]])
+            this_cov = prob_bounds([embeddings_edges[index] for index in vals[Ids]])
             if update_cov:
                 embeddings.Inv_Mappings[ed][Cov] = this_cov
             total_cov.MinCov += this_cov.MinCov

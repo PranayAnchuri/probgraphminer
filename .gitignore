@@ -51,3 +51,6 @@ docs/_build/
 
 # PyBuilder
 target
+
+#dont track the dataset
+BioMine/
